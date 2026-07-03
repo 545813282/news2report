@@ -1,0 +1,7 @@
+Cloudflare宣布9月15日起封锁"混合用途"AI爬虫
+
+Cloudflare宣布自2026年9月15日起，将默认屏蔽同时用于搜索引擎索引和AI模型训练的"混合用途"爬虫访问含广告页面，同时推出"按使用付费"模式。
+
+来源：Cloudflare官方博客
+来源链接：https://blog.cloudflare.com/generative-ai-scrapers/
+标签：AI基础设施、内容版权、爬虫治理

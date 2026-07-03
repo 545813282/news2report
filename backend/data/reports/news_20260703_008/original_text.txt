@@ -1,0 +1,7 @@
+Anthropic恢复Claude Fable 5和Mythos 5访问权限
+
+Anthropic于7月1日恢复了对Claude Fable 5和Claude Mythos 5的访问权限，此前因美国政府出口限制被暂停数周。
+
+来源：Anthropic官方博客
+来源链接：https://www.anthropic.com/news/fable-5-returning
+标签：大模型发布、出口管制、网络安全

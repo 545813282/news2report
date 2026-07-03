@@ -1,0 +1,7 @@
+Anthropic"AI for Science"：确定性工具将AI生物学准确率从16.9%提升至92.8%
+
+使用确定性工具可将AI在生物学领域的准确率从16.9%大幅提升至92.8%，对药物发现和生命科学研究具有重大意义。
+
+来源：Anthropic官方
+来源链接：https://www.anthropic.com/news/ai-for-science
+标签：AI for Science、生物学、药物发现

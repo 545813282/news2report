@@ -1,0 +1,7 @@
+Anthropic推出Claude Sonnet 5
+
+号称迄今为止最具智能体能力的Sonnet模型。智能体编码基准63.2%，100万token上下文窗口，定价$2/百万输入token（限时优惠至8月31日）。
+
+来源：Anthropic官方博客
+来源链接：https://www.anthropic.com/news/claude-sonnet-5
+标签：大模型发布、编程AI、定价策略

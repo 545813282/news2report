@@ -1,0 +1,7 @@
+Anthropic为Claude企业管理员推出支出控制功能
+
+模型默认设置和权限管理、支出阈值提醒（75%/90%/95%）、Admin API自动化成本管控。
+
+来源：Anthropic官方
+来源链接：https://www.anthropic.com/news/claude-for-enterprise-admins
+标签：企业AI、成本管理、SaaS
