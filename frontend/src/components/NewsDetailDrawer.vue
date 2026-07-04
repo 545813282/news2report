@@ -301,7 +301,7 @@ const sentimentType = (sentiment: string) => {
 
 .detail-header {
   padding-bottom: 16px;
-  border-bottom: 1px solid #ebeef5;
+  border-bottom: 1px solid var(--border);
   margin-bottom: 16px;
 }
 
@@ -314,7 +314,7 @@ const sentimentType = (sentiment: string) => {
 
 .publish-time {
   font-size: 13px;
-  color: #909399;
+  color: var(--text-muted);
 }
 
 .tags-row {
@@ -332,6 +332,7 @@ const sentimentType = (sentiment: string) => {
   align-items: center;
   gap: 10px;
   margin-top: 12px;
+  flex-wrap: wrap;
 }
 
 .report-actions .el-button {
@@ -358,8 +359,8 @@ const sentimentType = (sentiment: string) => {
   height: calc(100vh - 200px);
   overflow-y: auto;
   padding: 16px;
-  background: #f5f7fa;
-  border-radius: 8px;
+  background: var(--bg-soft);
+  border-radius: var(--radius);
 }
 
 .panel-title {
@@ -368,28 +369,28 @@ const sentimentType = (sentiment: string) => {
   gap: 8px;
   font-size: 16px;
   font-weight: 600;
-  color: #303133;
+  color: var(--primary-dark);
   margin-bottom: 16px;
   padding-bottom: 10px;
-  border-bottom: 2px solid #409eff;
+  border-bottom: 2px solid var(--primary);
 }
 
 .original-text {
   font-size: 15px;
   line-height: 1.8;
-  color: #303133;
+  color: var(--text);
   white-space: pre-wrap;
-  background: #ffffff;
+  background: var(--bg-card);
   padding: 16px;
-  border-radius: 6px;
-  border-left: 4px solid #409eff;
+  border-radius: 8px;
+  border-left: 4px solid var(--primary);
 }
 
 .translated-text {
   margin-top: 16px;
-  background: #ffffff;
+  background: var(--bg-card);
   padding: 16px;
-  border-radius: 6px;
+  border-radius: 8px;
   border-left: 4px solid #67c23a;
 }
 
@@ -406,34 +407,30 @@ const sentimentType = (sentiment: string) => {
 
 .analysis-section {
   margin-bottom: 20px;
-  background: #ffffff;
+  background: var(--bg-card);
   padding: 14px;
-  border-radius: 6px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
 }
 
 .section-title {
   font-size: 14px;
   font-weight: 600;
-  color: #606266;
+  color: var(--primary-dark);
   margin-bottom: 10px;
 }
 
 .ai-summary {
   font-size: 14px;
   line-height: 1.7;
-  color: #303133;
+  color: var(--text);
 }
 
 .viewpoint {
   font-size: 14px;
   line-height: 1.6;
-  color: #303133;
+  color: var(--text);
   margin: 0 0 10px 0;
-}
-
-.opinion-tags {
-  display: flex;
-  gap: 10px;
 }
 
 .entity-list,
@@ -450,7 +447,7 @@ const sentimentType = (sentiment: string) => {
 
 .entity-type {
   font-size: 11px;
-  color: #909399;
+  color: var(--text-muted);
 }
 
 .sentiment-row {
@@ -461,7 +458,7 @@ const sentimentType = (sentiment: string) => {
 
 .sentiment-reason {
   font-size: 13px;
-  color: #606266;
+  color: var(--text-secondary);
 }
 
 .key-points {
@@ -469,7 +466,7 @@ const sentimentType = (sentiment: string) => {
   padding-left: 18px;
   font-size: 14px;
   line-height: 1.8;
-  color: #606266;
+  color: var(--text-secondary);
 }
 
 .relation-list {
@@ -484,17 +481,17 @@ const sentimentType = (sentiment: string) => {
   gap: 8px;
   font-size: 13px;
   padding: 8px 12px;
-  background: #f5f7fa;
-  border-radius: 4px;
+  background: var(--bg-soft);
+  border-radius: 6px;
 }
 
 .relation-subject {
   font-weight: 600;
-  color: #409eff;
+  color: var(--primary);
 }
 
 .relation-predicate {
-  color: #606266;
+  color: var(--text-secondary);
 }
 
 .relation-object {
@@ -503,7 +500,8 @@ const sentimentType = (sentiment: string) => {
 }
 
 .processing-meta {
-  background: #f0f9ff;
+  background: var(--primary-light);
+  border-color: #bfdbfe;
 }
 
 .meta-grid {
@@ -511,10 +509,10 @@ const sentimentType = (sentiment: string) => {
   grid-template-columns: 1fr 1fr;
   gap: 8px;
   font-size: 13px;
-  color: #606266;
+  color: var(--text-secondary);
 }
 
 .meta-label {
-  color: #909399;
+  color: var(--text-muted);
 }
 </style>

@@ -206,17 +206,18 @@ onMounted(() => {
 
 .news-item {
   padding: 20px;
-  background: #ffffff;
-  border: 1px solid #e4e7ed;
-  border-radius: 8px;
-  transition: box-shadow 0.2s;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  transition: all 0.2s ease;
   cursor: pointer;
   position: relative;
 }
 
 .news-item:hover {
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
-  border-color: #409eff;
+  box-shadow: var(--shadow-md);
+  border-color: var(--primary-light);
+  transform: translateY(-2px);
 }
 
 .news-item::after {
@@ -225,7 +226,7 @@ onMounted(() => {
   top: 20px;
   right: 20px;
   font-size: 12px;
-  color: #409eff;
+  color: var(--primary);
   opacity: 0;
   transition: opacity 0.2s;
 }
@@ -245,7 +246,7 @@ onMounted(() => {
 .news-title {
   font-size: 17px;
   font-weight: 600;
-  color: #303133;
+  color: var(--text);
   margin: 0;
   flex: 1;
   line-height: 1.5;
@@ -260,7 +261,7 @@ onMounted(() => {
 
 .news-date {
   font-size: 13px;
-  color: #909399;
+  color: var(--text-muted);
 }
 
 .section {
@@ -270,23 +271,23 @@ onMounted(() => {
 .section-title {
   font-size: 13px;
   font-weight: 600;
-  color: #606266;
+  color: var(--primary-dark);
   margin-bottom: 6px;
 }
 
 .ai-summary {
   font-size: 14px;
-  color: #303133;
+  color: var(--text);
   line-height: 1.7;
   margin: 0;
-  background: #f5f7fa;
+  background: var(--bg-soft);
   padding: 10px;
   border-radius: 6px;
 }
 
 .viewpoint {
   font-size: 14px;
-  color: #303133;
+  color: var(--text);
   line-height: 1.6;
   margin: 0 0 8px 0;
 }
@@ -308,7 +309,7 @@ onMounted(() => {
 
 .entity-type {
   font-size: 11px;
-  color: #909399;
+  color: var(--text-muted);
 }
 
 .sentiment {
@@ -319,14 +320,14 @@ onMounted(() => {
 
 .sentiment-reason {
   font-size: 13px;
-  color: #606266;
+  color: var(--text-secondary);
 }
 
 .key-points {
   margin: 0;
   padding-left: 18px;
   font-size: 14px;
-  color: #606266;
+  color: var(--text-secondary);
   line-height: 1.8;
 }
 
@@ -335,12 +336,12 @@ onMounted(() => {
   justify-content: flex-end;
   margin-top: 12px;
   padding-top: 12px;
-  border-top: 1px solid #ebeef5;
+  border-top: 1px solid var(--border);
 }
 
 .empty-tip {
   text-align: center;
-  color: #909399;
+  color: var(--text-secondary);
   padding: 40px 0;
 }
 </style>

@@ -1,14 +1,35 @@
 <template>
-  <el-card class="daily-report-card">
+  <el-card class="daily-report-card" shadow="never">
     <template #header>
       <div class="card-header">
-        <span>📊 AI 领域日报</span>
-        <div class="header-actions">
+        <div class="header-left">
+          <span class="report-title">📊 AI 领域日报</span>
           <el-tag v-if="report?.date" type="info" size="small">{{ report.date }}</el-tag>
+        </div>
+        <div class="header-actions">
+          <el-button
+            v-if="report?.markdown"
+            size="small"
+            text
+            :icon="DocumentCopy"
+            @click="copyMarkdown"
+          >
+            复制 Markdown
+          </el-button>
+          <el-button
+            v-if="report?.date"
+            size="small"
+            text
+            :icon="Download"
+            @click="downloadPdf"
+          >
+            下载 PDF
+          </el-button>
           <el-button
             type="primary"
             size="small"
             :loading="loading"
+            :icon="Refresh"
             @click="fetchReport(true)"
           >
             {{ loading ? '生成中...' : '重新生成' }}
@@ -30,20 +51,43 @@
       <el-skeleton :rows="10" animated />
     </div>
 
+    <div v-else-if="report?.sections && report.sections.length > 0" class="report-sections">
+      <DailyReportSection
+        v-for="(section, index) in report.sections"
+        :key="index"
+        :section="section"
+      />
+    </div>
+
     <div v-else-if="report?.html" class="report-content" v-html="report.html"></div>
 
-    <el-empty v-else description="暂无日报，点击上方按钮生成"></el-empty>
+    <el-empty v-else description="暂无日报，点击上方按钮生成">
+      <template #image>
+        <div class="empty-illustration">📰</div>
+      </template>
+    </el-empty>
   </el-card>
 </template>
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
+import { Refresh, DocumentCopy, Download } from '@element-plus/icons-vue'
+import { ElMessage } from 'element-plus'
+import DailyReportSection from './DailyReportSection.vue'
+
+interface ReportSection {
+  level: number
+  title: string
+  type: string
+  content: string
+}
 
 interface DailyReport {
   status: string
   date: string
   markdown: string
   html: string
+  sections: ReportSection[]
   generated_at: string
   path: string
 }
@@ -71,6 +115,21 @@ async function fetchReport(force = false) {
   }
 }
 
+function copyMarkdown() {
+  if (!report.value?.markdown) return
+  navigator.clipboard.writeText(report.value.markdown).then(() => {
+    ElMessage.success('Markdown 已复制')
+  }).catch(() => {
+    ElMessage.error('复制失败')
+  })
+}
+
+function downloadPdf() {
+  if (!report.value?.date) return
+  const date = report.value.date
+  window.open(`/api/daily-report/pdf?date=${date}`, '_blank')
+}
+
 onMounted(() => {
   fetchReport(false)
 })
@@ -82,115 +141,82 @@ defineExpose({
 
 <style scoped>
 .daily-report-card {
-  margin-top: 20px;
+  border: none;
+  box-shadow: var(--shadow) !important;
 }
 
 .card-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  font-weight: 600;
 }
 
-.header-actions {
+.header-left {
   display: flex;
   align-items: center;
   gap: 12px;
 }
 
+.report-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
 .report-alert {
   margin-bottom: 16px;
+  border-radius: 8px;
 }
 
 .loading-wrapper {
   padding: 20px;
 }
 
+.empty-illustration {
+  font-size: 48px;
+  opacity: 0.5;
+  margin-bottom: 12px;
+}
+
+.report-sections {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
 .report-content {
-  font-size: 14px;
-  line-height: 1.8;
-  color: #1a1a1a;
+  font-size: 15px;
+  line-height: 1.85;
+  color: var(--text);
+  padding: 8px 4px;
 }
 
 .report-content :deep(h1) {
-  font-size: 22px;
-  font-weight: 600;
+  font-size: 24px;
+  font-weight: 700;
   margin: 24px 0 16px;
   padding-bottom: 10px;
-  border-bottom: 2px solid #409eff;
+  color: var(--text);
+  border-bottom: 2px solid var(--primary);
 }
 
 .report-content :deep(h2) {
-  font-size: 18px;
+  font-size: 19px;
   font-weight: 600;
-  margin: 24px 0 12px;
-  color: #1a1a1a;
+  margin: 22px 0 12px;
+  color: var(--primary-dark);
 }
 
 .report-content :deep(h3) {
-  font-size: 15px;
+  font-size: 16px;
   font-weight: 600;
   margin: 16px 0 8px;
-  color: #333333;
-}
-
-.report-content :deep(p) {
-  margin: 8px 0;
-}
-
-.report-content :deep(ul),
-.report-content :deep(ol) {
-  padding-left: 20px;
-  margin: 8px 0;
-}
-
-.report-content :deep(li) {
-  margin: 6px 0;
-}
-
-.report-content :deep(hr) {
-  border: none;
-  border-top: 1px solid #e4e7ed;
-  margin: 20px 0;
-}
-
-.report-content :deep(table) {
-  border-collapse: collapse;
-  width: 100%;
-  margin: 12px 0;
-}
-
-.report-content :deep(th),
-.report-content :deep(td) {
-  border: 1px solid #dcdfe6;
-  padding: 8px 12px;
-  text-align: left;
-}
-
-.report-content :deep(th) {
-  background: #f5f7fa;
-  font-weight: 600;
-}
-
-.report-content :deep(blockquote) {
-  border-left: 4px solid #409eff;
-  padding-left: 12px;
-  margin: 12px 0;
-  color: #606266;
-}
-
-.report-content :deep(code) {
-  background: #f5f7fa;
-  padding: 2px 6px;
-  border-radius: 4px;
-  font-family: 'Consolas', monospace;
-  font-size: 13px;
-}
-
-.report-content :deep(pre) {
-  background: #f5f7fa;
-  padding: 12px;
-  border-radius: 6px;
-  overflow-x: auto;
+  color: var(--text);
 }
 </style>

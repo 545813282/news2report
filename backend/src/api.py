@@ -13,9 +13,21 @@ logger = logging.getLogger(__name__)
 from fastapi import FastAPI, File, HTTPException, UploadFile
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
-from src.config import DATA_DIR, NEWS_LIMIT, OPENAI_API_KEY, OPENAI_MODEL
+from src.config import (
+    DAILY_REPORT_HOUR,
+    DAILY_REPORT_MINUTE,
+    DATA_DIR,
+    NEWS_LIMIT,
+    OPENAI_API_KEY,
+    OPENAI_MODEL,
+)
 from src.db import get_upload_record, init_db, insert_upload_record
-from src.services.daily_report_generator import generate_daily_report, get_latest_report
+from src.services.daily_report_generator import (
+    generate_daily_report,
+    get_latest_report,
+    generate_daily_report_pdf,
+    OUTPUT_DIR,
+)
 from src.services.report_generator import generate_reports
 
 app = FastAPI(title="AI舆情分析日报系统", version="0.1.0")
@@ -23,8 +35,57 @@ app = FastAPI(title="AI舆情分析日报系统", version="0.1.0")
 
 @app.on_event("startup")
 async def startup_event():
-    """服务启动时初始化 SQLite 数据库。"""
+    """服务启动时初始化 SQLite 数据库和日报定时任务。"""
     init_db()
+    _init_scheduler()
+
+
+@app.on_event("shutdown")
+async def shutdown_event():
+    """服务关闭时停止调度器。"""
+    _stop_scheduler()
+
+
+def _init_scheduler():
+    """初始化 APScheduler，每天固定时间自动生成日报。"""
+    try:
+        from apscheduler.schedulers.asyncio import AsyncIOScheduler
+        from apscheduler.triggers.cron import CronTrigger
+
+        scheduler = AsyncIOScheduler(timezone="Asia/Shanghai")
+        scheduler.add_job(
+            _scheduled_daily_report,
+            CronTrigger(hour=DAILY_REPORT_HOUR, minute=DAILY_REPORT_MINUTE),
+            id="daily_report_job",
+            replace_existing=True,
+        )
+        scheduler.start()
+        logger.info(
+            "日报定时任务已启动: 每天 %02d:%02d",
+            DAILY_REPORT_HOUR,
+            DAILY_REPORT_MINUTE,
+        )
+        app.state.scheduler = scheduler
+    except Exception as e:
+        logger.error("初始化日报定时任务失败: %s", e)
+
+
+def _stop_scheduler():
+    """停止调度器。"""
+    scheduler = getattr(app.state, "scheduler", None)
+    if scheduler:
+        scheduler.shutdown()
+        logger.info("日报定时任务已停止")
+
+
+async def _scheduled_daily_report():
+    """定时任务：生成当日日报。"""
+    try:
+        today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+        logger.info("定时任务触发，正在生成 %s 的日报", today)
+        generate_daily_report(date_str=today, force=True)
+    except Exception as e:
+        logger.exception("定时生成日报失败: %s", e)
 
 
 @app.get("/api/daily-report")
@@ -33,10 +94,10 @@ async def daily_report(date: str | None = None, force: bool = False):
     try:
         return generate_daily_report(date_str=date, force=force)
     except RuntimeError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=400, detail=str(e)) from e
     except Exception as e:
-        logger.error("日报生成失败: %s", e)
-        raise HTTPException(status_code=500, detail="日报生成失败")
+        logger.exception("日报生成失败: %s", e)
+        raise HTTPException(status_code=500, detail=f"日报生成失败: {e}") from e
 
 
 @app.post("/api/daily-report/generate")
@@ -45,10 +106,37 @@ async def generate_daily_report_endpoint(date: str | None = None, force: bool = 
     try:
         return generate_daily_report(date_str=date, force=force)
     except RuntimeError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=400, detail=str(e)) from e
     except Exception as e:
-        logger.error("日报生成失败: %s", e)
-        raise HTTPException(status_code=500, detail="日报生成失败")
+        logger.exception("日报生成失败: %s", e)
+        raise HTTPException(status_code=500, detail=f"日报生成失败: {e}") from e
+
+
+@app.get("/api/daily-report/pdf")
+async def download_daily_report_pdf(date: str | None = None):
+    """下载指定日期的日报 PDF，若不存在则先生成。"""
+    try:
+        target_date = date or datetime.now(timezone.utc).strftime("%Y-%m-%d")
+        pdf_path = OUTPUT_DIR / f"daily_report_{target_date}.pdf"
+
+        if not pdf_path.exists():
+            generate_daily_report_pdf(date_str=target_date)
+
+        if not pdf_path.exists():
+            raise HTTPException(status_code=404, detail="日报 PDF 生成失败")
+
+        return FileResponse(
+            pdf_path,
+            media_type="application/pdf",
+            filename=f"daily_report_{target_date}.pdf",
+        )
+    except RuntimeError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception("生成日报 PDF 失败: %s", e)
+        raise HTTPException(status_code=500, detail=f"生成日报 PDF 失败: {e}") from e
 
 
 class HealthResponse(BaseModel):

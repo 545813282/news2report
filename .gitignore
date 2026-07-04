@@ -33,6 +33,14 @@ pnpm-lock.yaml
 .DS_Store
 Thumbs.db
 
+# Logs
+backend/logs/
+*.log
+frontend/npm-dev.log
+
+# Test artifacts
+backend/report_test.json
+
 # Data outputs
 backend/data/raw/*.json
 backend/data/processed/*.json

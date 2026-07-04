@@ -502,28 +502,28 @@ const downloadOriginal = () => {
 .panel-title {
   font-size: 15px;
   font-weight: 600;
-  color: #303133;
+  color: var(--primary-dark);
   margin-bottom: 12px;
   padding-bottom: 8px;
-  border-bottom: 2px solid #409eff;
+  border-bottom: 2px solid var(--primary);
 }
 
 .original-text {
   font-size: 14px;
   line-height: 1.8;
-  color: #303133;
+  color: var(--text);
   white-space: pre-wrap;
-  background: #f5f7fa;
+  background: var(--bg-soft);
   padding: 16px;
   border-radius: 6px;
-  border-left: 4px solid #409eff;
+  border-left: 4px solid var(--primary);
   max-height: 600px;
   overflow-y: auto;
 }
 
 .analysis-section {
   margin-bottom: 16px;
-  background: #f5f7fa;
+  background: var(--bg-soft);
   padding: 12px;
   border-radius: 6px;
 }
@@ -531,21 +531,21 @@ const downloadOriginal = () => {
 .section-title {
   font-size: 13px;
   font-weight: 600;
-  color: #606266;
+  color: var(--primary-dark);
   margin-bottom: 8px;
 }
 
 .ai-summary {
   font-size: 14px;
   line-height: 1.6;
-  color: #303133;
+  color: var(--text);
   margin: 0;
 }
 
 .viewpoint {
   font-size: 14px;
   line-height: 1.6;
-  color: #303133;
+  color: var(--text);
   margin: 0 0 8px 0;
 }
 
@@ -560,7 +560,7 @@ const downloadOriginal = () => {
 
 .entity-type {
   font-size: 11px;
-  color: #909399;
+  color: var(--text-muted);
 }
 
 .key-points {
@@ -568,10 +568,10 @@ const downloadOriginal = () => {
   padding-left: 18px;
   font-size: 14px;
   line-height: 1.8;
-  color: #606266;
+  color: var(--text-secondary);
 }
 
 :deep(.el-upload__tip) {
-  color: #909399;
+  color: var(--text-secondary);
 }
 </style>

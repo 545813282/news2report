@@ -5,12 +5,13 @@ AI 领域日报生成服务
 
 import json
 import logging
+import re
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
 import markdown2
-from openai import OpenAI
+from openai import APIError, AuthenticationError, BadRequestError, OpenAI, RateLimitError
 
 from src.config import DATA_DIR, OPENAI_API_KEY, OPENAI_BASE_URL, OPENAI_MODEL
 
@@ -24,6 +25,8 @@ SYSTEM_PROMPT = """你是一位资深的 AI 产业分析师。请基于用户提
 
 ```markdown
 # AI领域日报 —— [日期]
+
+[2-4句话的日报导读。概括今日 AI 领域事件总数、主要方向（技术/商业/政策/资本），以及 1-2 条最值得关注的结论。禁止空内容。]
 
 ## 今日主要热点
 
@@ -100,8 +103,11 @@ AI技术在实际应用/商业落地方面的趋势变化。
 8. 禁止使用 emoji/表情符号；加粗仅用于小标题和关键术语，禁止整段加粗。
 9. 趋势判断每个方向至少引用 2 个具体事件/数据支撑。
 10. 风险/机会提示必须包含确定性评级和时间窗口，以及明确逻辑链。
+11. 日报主标题下方必须输出 2-4 句话的导读，概括当日事件数量、主要方向和核心结论；禁止空内容。
 
 输出必须是纯 Markdown，不要包含代码块包裹，不要添加任何额外说明。
+11. 直接输出最终日报正文，禁止输出思考过程、分析步骤、推理链条或类似"Let me analyze...""First...""I will..."的内容。
+12. 正文必须从 `# AI领域日报 —— [日期]` 开始，之前不要有任何前言。
 """
 
 
@@ -184,6 +190,98 @@ def _markdown_to_html(markdown_text: str) -> str:
     return markdown2.markdown(markdown_text, extras=extras)
 
 
+def _strip_thinking_prefix(text: str) -> str:
+    """去除模型思考前缀，只保留从 '# AI领域日报' 开始的正式报告正文。"""
+    text = text.strip()
+    # 如果正文被 ```markdown ... ``` 包裹，先去掉
+    if text.startswith("```markdown"):
+        text = text[len("```markdown"):].strip()
+    if text.endswith("```"):
+        text = text[:-3].strip()
+
+    # 模型思考过程中可能也会提到标题，真正的报告通常是最后一个 # AI领域日报
+    # 并且后面紧跟 ## 今日主要热点 等二级标题
+    matches = list(re.finditer(r"(^|\n)#\s+AI领域日报", text))
+    if matches:
+        # 优先选择后面紧跟 ## 的标题（正式报告）
+        for match in reversed(matches):
+            following = text[match.end():match.end() + 200]
+            if re.search(r"\n##\s+", following):
+                return text[match.start():].strip()
+        # 兜底：取最后一个
+        return text[matches[-1].start():].strip()
+    return text
+
+
+def _classify_section(title: str) -> str:
+    """根据 section 标题分类。"""
+    title_lower = title.lower()
+    if any(k in title_lower for k in ["热点", "今日主要"]):
+        return "hotspots"
+    if any(k in title_lower for k in ["深度分析", "重要事件", "事件分析"]):
+        return "analysis"
+    if any(k in title_lower for k in ["趋势判断", "趋势"]):
+        return "trends"
+    if any(k in title_lower for k in ["风险", "机会", "提示"]):
+        return "risks_opportunities"
+    if any(k in title_lower for k in ["总结", "结论", "overview"]):
+        return "summary"
+    return "others"
+
+
+def parse_report_sections(markdown_text: str) -> list[dict[str, Any]]:
+    """将日报 Markdown 按二级标题拆分为结构化 section 列表。"""
+    sections: list[dict[str, Any]] = []
+    if not markdown_text:
+        return sections
+
+    # 按 ## 标题拆分，保留标题
+    parts = re.split(r"\n(?=##\s+)", markdown_text.strip())
+
+    for part in parts:
+        part = part.strip()
+        if not part:
+            continue
+
+        # 提取标题行
+        lines = part.split("\n")
+        first_line = lines[0].strip()
+
+        # 如果第一部分没有 ## 标题（例如开头的 # AI领域日报），作为 overview
+        if first_line.startswith("# ") and not first_line.startswith("## "):
+            content = "\n".join(lines[1:]).strip()
+            # 主标题下方的内容作为日报导读；无内容则跳过，避免空白卡片
+            if content:
+                sections.append({
+                    "level": 1,
+                    "title": "日报概览",
+                    "type": "overview",
+                    "content": content,
+                })
+            continue
+
+        if first_line.startswith("## "):
+            title = first_line.lstrip("## ").strip()
+            content = "\n".join(lines[1:]).strip()
+            sections.append({
+                "level": 2,
+                "title": title,
+                "type": _classify_section(title),
+                "content": content,
+            })
+            continue
+
+        # 没有识别到标题，归入 others
+        sections.append({
+            "level": 0,
+            "title": "",
+            "type": "others",
+            "content": part,
+        })
+
+    return sections
+
+
 def generate_daily_report(
     date_str: str | None = None,
     force: bool = False,
@@ -205,6 +303,7 @@ def generate_daily_report(
             "date": target_date,
             "markdown": markdown_text,
             "html": html_text,
+            "sections": parse_report_sections(markdown_text),
             "generated_at": datetime.fromtimestamp(md_path.stat().st_mtime, tz=timezone.utc).isoformat(),
             "path": str(md_path),
         }
@@ -220,30 +319,54 @@ def generate_daily_report(
 
     news_items = _prepare_news_items(filtered_news)
 
-    client = OpenAI(api_key=OPENAI_API_KEY, base_url=OPENAI_BASE_URL)
+    client = OpenAI(
+        api_key=OPENAI_API_KEY,
+        base_url=OPENAI_BASE_URL,
+        default_headers={"User-Agent": "claude-code/0.1.0"},
+    )
     temperature = 1.0 if OPENAI_MODEL == "kimi-for-coding" else 0.5
 
     logger.info("正在生成 %s 的 AI 日报，使用 %d 条新闻", target_date, len(news_items))
 
-    response = client.chat.completions.create(
-        model=OPENAI_MODEL,
-        messages=[
-            {"role": "system", "content": SYSTEM_PROMPT},
-            {
-                "role": "user",
-                "content": f"请根据以下结构化新闻数据生成 {target_date} 的 AI 领域日报。\n\n```json\n{json.dumps(news_items, ensure_ascii=False, indent=2)}\n```",
-            },
-        ],
-        temperature=temperature,
-        max_tokens=8000,
-    )
+    try:
+        response = client.chat.completions.create(
+            model=OPENAI_MODEL,
+            messages=[
+                {"role": "system", "content": SYSTEM_PROMPT},
+                {
+                    "role": "user",
+                    "content": f"请根据以下结构化新闻数据生成 {target_date} 的 AI 领域日报。\n\n```json\n{json.dumps(news_items, ensure_ascii=False, indent=2)}\n```",
+                },
+            ],
+            temperature=temperature,
+            max_tokens=16000,
+        )
+    except AuthenticationError as e:
+        logger.error("AI API Key 无效: %s", e)
+        raise RuntimeError("AI API Key 无效，请检查 backend/.env 中的 OPENAI_API_KEY") from e
+    except BadRequestError as e:
+        logger.error("AI 请求参数错误（可能是上下文超长）: %s", e)
+        raise RuntimeError("AI 请求超长，请减少新闻条数或换用大上下文模型") from e
+    except RateLimitError as e:
+        logger.error("AI API 速率限制: %s", e)
+        raise RuntimeError("AI API 调用过于频繁，请稍后重试") from e
+    except APIError as e:
+        logger.error("AI API 调用异常: %s", e)
+        raise RuntimeError(f"AI API 调用异常: {e}") from e
 
-    markdown_text = response.choices[0].message.content or ""
-    markdown_text = markdown_text.strip()
-    if markdown_text.startswith("```markdown"):
-        markdown_text = markdown_text[len("```markdown"):].strip()
-    if markdown_text.endswith("```"):
-        markdown_text = markdown_text[:-3].strip()
+    message = response.choices[0].message
+    markdown_text = message.content or ""
+
+    # Kimi Code / 推理模型可能在 reasoning_content 中返回内容
+    if not markdown_text.strip() and getattr(message, "reasoning_content", None):
+        logger.warning("AI 返回的 content 为空，尝试使用 reasoning_content")
+        markdown_text = message.reasoning_content
+
+    # 去除思考前缀，只保留正式日报正文
+    markdown_text = _strip_thinking_prefix(markdown_text)
+
+    if not markdown_text:
+        raise RuntimeError("AI 返回的日报内容为空，请重试或更换模型")
 
     html_text = _markdown_to_html(markdown_text)
 
@@ -251,15 +374,143 @@ def generate_daily_report(
     md_path.write_text(markdown_text, encoding="utf-8")
     html_path.write_text(html_text, encoding="utf-8")
 
+    sections = parse_report_sections(markdown_text)
+
     logger.info("日报生成完成: %s", md_path)
     return {
         "status": "ok",
         "date": target_date,
         "markdown": markdown_text,
         "html": html_text,
+        "sections": sections,
         "generated_at": generated_at,
         "path": str(md_path),
     }
+
+
+def _register_pdf_cjk_font() -> str:
+    """注册 PDF 中文字体。"""
+    from reportlab.pdfbase import pdfmetrics
+    from reportlab.pdfbase.ttfonts import TTFont
+
+    candidates = [
+        r"C:\Windows\Fonts\simhei.ttf",
+        r"C:\Windows\Fonts\msyh.ttc",
+        r"C:\Windows\Fonts\simsun.ttc",
+    ]
+    for font_path in candidates:
+        if Path(font_path).exists():
+            try:
+                pdfmetrics.registerFont(TTFont("CJK", font_path))
+                pdfmetrics.registerFont(TTFont("CJK-Bold", font_path))
+                return "CJK"
+            except Exception as e:
+                logger.warning("注册字体失败: %s", e)
+    return "Helvetica"
+
+
+def generate_daily_report_pdf(date_str: str | None = None) -> Path:
+    """生成日报 PDF，返回 PDF 文件路径。"""
+    from reportlab.lib import colors
+    from reportlab.lib.pagesizes import A4
+    from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
+    from reportlab.lib.units import cm
+    from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer
+
+    news_list = _read_structured_news()
+    target_date = _get_target_date(news_list, date_str)
+    md_path, _ = _get_report_paths(target_date)
+
+    if not md_path.exists():
+        generate_daily_report(date_str=target_date, force=True)
+
+    markdown_text = md_path.read_text(encoding="utf-8")
+    pdf_path = OUTPUT_DIR / f"daily_report_{target_date}.pdf"
+
+    cjk_font = _register_pdf_cjk_font()
+    styles = getSampleStyleSheet()
+
+    title_style = ParagraphStyle(
+        "TitleCJK",
+        parent=styles["Title"],
+        fontName=cjk_font,
+        fontSize=20,
+        leading=26,
+        alignment=1,
+        spaceAfter=18,
+    )
+    h1_style = ParagraphStyle(
+        "H1CJK",
+        parent=styles["Heading1"],
+        fontName=cjk_font,
+        fontSize=16,
+        leading=22,
+        textColor=colors.HexColor("#1e293b"),
+        spaceAfter=10,
+        spaceBefore=14,
+    )
+    h2_style = ParagraphStyle(
+        "H2CJK",
+        parent=styles["Heading2"],
+        fontName=cjk_font,
+        fontSize=13,
+        leading=18,
+        textColor=colors.HexColor("#2563eb"),
+        spaceAfter=8,
+        spaceBefore=10,
+    )
+    body_style = ParagraphStyle(
+        "BodyCJK",
+        parent=styles["BodyText"],
+        fontName=cjk_font,
+        fontSize=10,
+        leading=16,
+        spaceAfter=6,
+    )
+    bullet_style = ParagraphStyle(
+        "BulletCJK",
+        parent=styles["BodyText"],
+        fontName=cjk_font,
+        fontSize=10,
+        leading=16,
+        leftIndent=18,
+        spaceAfter=4,
+    )
+
+    story: list[Any] = []
+    story.append(Paragraph(f"AI领域日报 —— {target_date}", title_style))
+    story.append(Spacer(1, 0.3 * cm))
+
+    for raw_line in markdown_text.splitlines():
+        line = raw_line.rstrip()
+        if not line:
+            continue
+        if line.startswith("# "):
+            story.append(Paragraph(line.lstrip("# ").strip(), h1_style))
+        elif line.startswith("## "):
+            story.append(Paragraph(line.lstrip("## ").strip(), h2_style))
+        elif line.startswith("### "):
+            story.append(Paragraph("• " + line.lstrip("### ").strip(), h2_style))
+        elif line.startswith("- ") or line.startswith("* "):
+            text = line.lstrip("- *").strip()
+            story.append(Paragraph("• " + text, bullet_style))
+        elif line.startswith("> "):
+            text = line.lstrip("> ").strip()
+            story.append(Paragraph(text, body_style))
+        else:
+            story.append(Paragraph(line, body_style))
+
+    doc = SimpleDocTemplate(
+        str(pdf_path),
+        pagesize=A4,
+        rightMargin=2 * cm,
+        leftMargin=2 * cm,
+        topMargin=2 * cm,
+        bottomMargin=2 * cm,
+    )
+    doc.build(story)
+    logger.info("日报 PDF 生成完成: %s", pdf_path)
+    return pdf_path
 
 
 def get_latest_report() -> dict[str, Any] | None:
@@ -273,11 +524,13 @@ def get_latest_report() -> dict[str, Any] | None:
     _, html_path = _get_report_paths(date_str)
     if not html_path.exists():
         html_path.write_text(_markdown_to_html(latest_md.read_text(encoding="utf-8")), encoding="utf-8")
+    markdown_text = latest_md.read_text(encoding="utf-8")
     return {
         "status": "ok",
         "date": date_str,
-        "markdown": latest_md.read_text(encoding="utf-8"),
+        "markdown": markdown_text,
         "html": html_path.read_text(encoding="utf-8"),
+        "sections": parse_report_sections(markdown_text),
         "generated_at": datetime.fromtimestamp(latest_md.stat().st_mtime, tz=timezone.utc).isoformat(),
         "path": str(latest_md),
     }
